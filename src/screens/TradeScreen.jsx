@@ -1,38 +1,29 @@
-import { useState, useMemo } from 'react';
-import { ChevronDown, Minus, Plus, TrendingUp, Clock, BarChart3, ArrowUpDown, X, ChevronRight } from 'lucide-react';
-import CandlestickChart from '../components/CandlestickChart';
+import { useState } from 'react';
+import { ChevronDown, ArrowUpDown, X, Clock, Search } from 'lucide-react';
 import OrderBook from '../components/OrderBook';
-import RecentTrades from '../components/RecentTrades';
-import SentimentBar from '../components/SentimentBar';
-import { forexPairs, leverageOptions, openPositions, closedTrades } from '../data/mockData';
+import { forexPairs, openPositions, closedTrades } from '../data/mockData';
 
 export default function TradeScreen() {
   const [selectedPair, setSelectedPair] = useState(forexPairs[0]);
-  const [selectedLeverage, setSelectedLeverage] = useState('1:100');
+  const [leverageValue, setLeverageValue] = useState(100);
   const [lotSize, setLotSize] = useState(0.10);
-  const [timeframe, setTimeframe] = useState('1H');
   const [showPairPicker, setShowPairPicker] = useState(false);
+  const [pairSearch, setPairSearch] = useState('');
   const [orderType, setOrderType] = useState('market');
-  const [middleTab, setMiddleTab] = useState('orderbook');
   const [bottomTab, setBottomTab] = useState('positions');
   const [tp, setTp] = useState('');
   const [sl, setSl] = useState('');
+  const [showTpSl, setShowTpSl] = useState(false);
+  const [showNetTarget, setShowNetTarget] = useState(false);
+  const [netTargetMode, setNetTargetMode] = useState('$'); // '$' or '%'
+  const [netProfit, setNetProfit] = useState('');
+  const [netLoss, setNetLoss] = useState('');
+  const [tradeDirection, setTradeDirection] = useState('buy');
 
-  const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
   const decimals = selectedPair.price > 100 ? 2 : 4;
 
-  const pairPositions = openPositions.filter(p => p.pair === selectedPair.pair);
   const allPositions = openPositions;
 
-  const bidPrice = (selectedPair.price - selectedPair.spread * 0.0001 / 2).toFixed(decimals);
-  const askPrice = (selectedPair.price + selectedPair.spread * 0.0001 / 2).toFixed(decimals);
-
-  // Mock 24h stats
-  const stats24h = useMemo(() => ({
-    high: +(selectedPair.price * 1.005).toFixed(decimals),
-    low: +(selectedPair.price * 0.994).toFixed(decimals),
-    volume: selectedPair.volume,
-  }), [selectedPair, decimals]);
 
   return (
     <div className="h-full bg-bg-primary flex flex-col">
@@ -55,10 +46,30 @@ export default function TradeScreen() {
       {/* ── Pair Picker Dropdown ── */}
       {showPairPicker && (
         <div className="glass rounded-xl animate-slideDown shrink-0" style={{ padding: 6, margin: '0 16px 6px' }}>
-          {forexPairs.map((pair) => (
+          {/* Search input */}
+          <div className="flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px', marginBottom: 4 }}>
+            <Search className="text-text-muted shrink-0" style={{ width: 12, height: 12 }} />
+            <input
+              type="text"
+              placeholder="Search pair..."
+              value={pairSearch}
+              onChange={(e) => setPairSearch(e.target.value)}
+              autoFocus
+              className="bg-transparent text-text-primary w-full outline-none"
+              style={{ fontSize: 12, padding: '8px 6px' }}
+            />
+            {pairSearch && (
+              <button onClick={() => setPairSearch('')} className="text-text-muted shrink-0">
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            )}
+          </div>
+          {forexPairs
+            .filter((pair) => pair.pair.toLowerCase().includes(pairSearch.toLowerCase()))
+            .map((pair) => (
             <button
               key={pair.pair}
-              onClick={() => { setSelectedPair(pair); setShowPairPicker(false); }}
+              onClick={() => { setSelectedPair(pair); setShowPairPicker(false); setPairSearch(''); }}
               className={`w-full flex items-center justify-between rounded-xl text-sm transition-all ${
                 selectedPair.pair === pair.pair ? 'bg-accent/[0.08] text-accent' : 'text-text-primary hover:bg-bg-elevated'
               }`}
@@ -79,187 +90,272 @@ export default function TradeScreen() {
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto custom-scroll">
 
-      {/* ── 24h Stats Bar ── */}
-      <div className="flex items-center justify-between shrink-0 border-b border-border" style={{ padding: '6px 16px' }}>
-        <div className="flex items-center" style={{ gap: 14 }}>
-          <div>
-            <span className="text-text-muted block" style={{ fontSize: 9 }}>24h High</span>
-            <span className="text-text-primary tabular-nums font-medium" style={{ fontSize: 11 }}>{stats24h.high}</span>
-          </div>
-          <div>
-            <span className="text-text-muted block" style={{ fontSize: 9 }}>24h Low</span>
-            <span className="text-text-primary tabular-nums font-medium" style={{ fontSize: 11 }}>{stats24h.low}</span>
-          </div>
-          <div>
-            <span className="text-text-muted block" style={{ fontSize: 9 }}>Volume</span>
-            <span className="text-text-primary tabular-nums font-medium" style={{ fontSize: 11 }}>{stats24h.volume}</span>
+      {/* ── Side-by-side: Order Book + Trade Form ── */}
+      <div className="shrink-0 flex items-stretch" style={{ padding: '10px 16px 8px', gap: 8 }}>
+        {/* Left column: Order Book (~40%) */}
+        <div className="flex flex-col" style={{ width: '40%', minWidth: 0 }}>
+          <div className="gradient-card rounded-xl border border-border flex-1 overflow-y-auto custom-scroll" style={{ padding: '10px 10px' }}>
+            <OrderBook basePrice={selectedPair.price} decimals={decimals} spread={selectedPair.spread} />
           </div>
         </div>
-        <div style={{ minWidth: 70 }}>
-          <span className="text-text-muted block" style={{ fontSize: 9 }}>Spread</span>
-          <span className="text-accent tabular-nums font-medium" style={{ fontSize: 11 }}>{selectedPair.spread} pips</span>
+
+        {/* Right column: Trade Form (~60%) — Binance style */}
+        <div className="flex flex-col" style={{ width: '60%', minWidth: 0 }}>
+          <div className="glass-strong rounded-xl border border-border flex flex-col flex-1" style={{ padding: '0' }}>
+
+            {/* ── Buy / Sell Tabs ── */}
+            <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <button
+                onClick={() => setTradeDirection('buy')}
+                className={`flex-1 font-bold text-center transition-all ${
+                  tradeDirection === 'buy' ? 'text-buy bg-buy/[0.08]' : 'text-text-muted hover:text-text-secondary'
+                }`}
+                style={{ padding: '10px 0', fontSize: 12, borderBottom: tradeDirection === 'buy' ? '2px solid var(--color-buy)' : '2px solid transparent' }}
+              >
+                Buy
+              </button>
+              <button
+                onClick={() => setTradeDirection('sell')}
+                className={`flex-1 font-bold text-center transition-all ${
+                  tradeDirection === 'sell' ? 'text-sell bg-sell/[0.08]' : 'text-text-muted hover:text-text-secondary'
+                }`}
+                style={{ padding: '10px 0', fontSize: 12, borderBottom: tradeDirection === 'sell' ? '2px solid var(--color-sell)' : '2px solid transparent' }}
+              >
+                Sell
+              </button>
+            </div>
+
+            <div style={{ padding: '10px 12px' }}>
+              {/* ── Order Type Selector ── */}
+              <div className="flex bg-bg-secondary rounded-lg border border-border" style={{ gap: 2, padding: 3, marginBottom: 10 }}>
+                {[
+                  { id: 'market', label: 'Market' },
+                  { id: 'limit', label: 'Limit' },
+                  { id: 'stop', label: 'Stop' },
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => setOrderType(type.id)}
+                    className={`flex-1 rounded-md font-semibold text-center transition-all ${
+                      orderType === type.id ? 'bg-bg-elevated text-text-primary shadow-sm' : 'text-text-muted'
+                    }`}
+                    style={{ padding: '5px 0', fontSize: 10 }}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Lots ── */}
+              <div style={{ marginBottom: 10 }}>
+                <div className="flex items-center bg-bg-card rounded-lg border border-border" style={{ marginBottom: 5 }}>
+                  <span className="text-text-muted font-medium shrink-0" style={{ fontSize: 9, padding: '0 8px' }}>Lots</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={lotSize}
+                    onChange={(e) => { const v = parseFloat(e.target.value); if (v > 0) setLotSize(v); }}
+                    className="bg-transparent text-text-primary font-bold tabular-nums w-full outline-none text-right"
+                    style={{ fontSize: 12, padding: '7px 8px' }}
+                  />
+                </div>
+                <div className="flex" style={{ gap: 3 }}>
+                  {[0.01, 0.05, 0.1, 0.5, 1.0].map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => setLotSize(preset)}
+                      className={`flex-1 rounded font-medium transition-all ${
+                        lotSize === preset
+                          ? tradeDirection === 'buy' ? 'bg-buy/[0.12] text-buy' : 'bg-sell/[0.12] text-sell'
+                          : 'bg-bg-elevated text-text-muted hover:text-text-secondary'
+                      }`}
+                      style={{ padding: '3px 0', fontSize: 8 }}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Leverage ── */}
+              <div style={{ marginBottom: 10 }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
+                  <span className="text-text-muted font-medium" style={{ fontSize: 9 }}>Leverage</span>
+                  <div className="flex items-center bg-bg-card rounded border border-border" style={{ padding: '2px 6px' }}>
+                    <span className="text-text-muted" style={{ fontSize: 9 }}>1:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={leverageValue}
+                      onChange={(e) => { const v = parseInt(e.target.value); if (v > 0) setLeverageValue(v); }}
+                      className="bg-transparent text-accent font-bold tabular-nums outline-none text-right"
+                      style={{ fontSize: 10, width: 36, padding: '1px 0' }}
+                    />
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={500}
+                  step={1}
+                  value={leverageValue}
+                  onChange={(e) => setLeverageValue(Number(e.target.value))}
+                  className="leverage-slider w-full"
+                  style={{ color: tradeDirection === 'buy' ? 'var(--color-buy)' : 'var(--color-sell)' }}
+                />
+                <div className="flex items-center justify-between" style={{ marginTop: 2 }}>
+                  {[10, 50, 100, 200, 500].map((v) => (
+                    <span key={v} className="text-text-muted" style={{ fontSize: 7 }}>{v}x</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Trade Info ── */}
+              <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                <span className="text-text-muted" style={{ fontSize: 9 }}>Margin: <span className="text-text-secondary font-medium tabular-nums">${(selectedPair.price * lotSize * 100000 / leverageValue).toFixed(2)}</span></span>
+                <span className="text-text-muted" style={{ fontSize: 9 }}>Pip: <span className="text-text-secondary font-medium tabular-nums">${(lotSize * 10).toFixed(2)}</span></span>
+              </div>
+
+              {/* ── TP/SL Checkbox Toggle ── */}
+              <button
+                onClick={() => setShowTpSl(!showTpSl)}
+                className="flex items-center transition-all"
+                style={{ gap: 6, marginBottom: showTpSl ? 8 : 10 }}
+              >
+                <div className={`rounded border flex items-center justify-center transition-all ${showTpSl ? (tradeDirection === 'buy' ? 'bg-buy border-buy' : 'bg-sell border-sell') : 'border-border bg-bg-card'}`} style={{ width: 14, height: 14 }}>
+                  {showTpSl && <span className="text-white font-bold" style={{ fontSize: 9, lineHeight: 1 }}>✓</span>}
+                </div>
+                <span className="text-text-muted font-medium" style={{ fontSize: 10 }}>TP/SL</span>
+              </button>
+
+              {/* ── TP/SL Inputs (collapsible) ── */}
+              {showTpSl && (
+                <div className="animate-slideDown flex flex-col" style={{ gap: 6, marginBottom: 10 }}>
+                  <div className="flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px' }}>
+                    <span className="text-buy font-semibold shrink-0" style={{ fontSize: 9, marginRight: 6 }}>TP</span>
+                    <input
+                      type="text"
+                      placeholder={`e.g. ${(selectedPair.price * 1.003).toFixed(decimals)}`}
+                      value={tp}
+                      onChange={(e) => setTp(e.target.value)}
+                      className="bg-transparent text-text-primary w-full outline-none tabular-nums"
+                      style={{ fontSize: 11, padding: '6px 0' }}
+                    />
+                  </div>
+                  <div className="flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px' }}>
+                    <span className="text-sell font-semibold shrink-0" style={{ fontSize: 9, marginRight: 6 }}>SL</span>
+                    <input
+                      type="text"
+                      placeholder={`e.g. ${(selectedPair.price * 0.997).toFixed(decimals)}`}
+                      value={sl}
+                      onChange={(e) => setSl(e.target.value)}
+                      className="bg-transparent text-text-primary w-full outline-none tabular-nums"
+                      style={{ fontSize: 11, padding: '6px 0' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* ── Auto Close (Net Profit Target) ── */}
+              <button
+                onClick={() => setShowNetTarget(!showNetTarget)}
+                className="flex items-center transition-all"
+                style={{ gap: 6, marginBottom: showNetTarget ? 8 : 10 }}
+              >
+                <div className={`rounded border flex items-center justify-center transition-all ${showNetTarget ? (tradeDirection === 'buy' ? 'bg-buy border-buy' : 'bg-sell border-sell') : 'border-border bg-bg-card'}`} style={{ width: 14, height: 14 }}>
+                  {showNetTarget && <span className="text-white font-bold" style={{ fontSize: 9, lineHeight: 1 }}>✓</span>}
+                </div>
+                <span className="text-text-muted font-medium" style={{ fontSize: 10 }}>Auto Close (Net)</span>
+              </button>
+
+              {showNetTarget && (() => {
+                const pipValue = lotSize * 10;
+                const spreadCost = selectedPair.spread * pipValue;
+                const commission = lotSize * 7; // $7 per lot (mock)
+                const totalFee = spreadCost + commission;
+                return (
+                  <div className="animate-slideDown" style={{ marginBottom: 10 }}>
+                    {/* Mode toggle: $ / % */}
+                    <div className="flex bg-bg-secondary rounded-lg border border-border" style={{ gap: 2, padding: 2, marginBottom: 8 }}>
+                      {['$', '%'].map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => setNetTargetMode(mode)}
+                          className={`flex-1 rounded-md font-semibold text-center transition-all ${
+                            netTargetMode === mode ? 'bg-bg-elevated text-text-primary shadow-sm' : 'text-text-muted'
+                          }`}
+                          style={{ padding: '4px 0', fontSize: 10 }}
+                        >
+                          {mode === '$' ? 'Amount ($)' : 'Percent (%)'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Net Profit / Loss inputs */}
+                    <div className="flex flex-col" style={{ gap: 5, marginBottom: 8 }}>
+                      <div className="flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px' }}>
+                        <span className="text-buy font-semibold shrink-0" style={{ fontSize: 9, marginRight: 6 }}>Profit</span>
+                        <input
+                          type="text"
+                          placeholder={netTargetMode === '$' ? 'e.g. 50.00' : 'e.g. 2.5'}
+                          value={netProfit}
+                          onChange={(e) => setNetProfit(e.target.value)}
+                          className="bg-transparent text-text-primary w-full outline-none tabular-nums text-right"
+                          style={{ fontSize: 11, padding: '6px 0' }}
+                        />
+                        <span className="text-text-muted shrink-0" style={{ fontSize: 9, marginLeft: 4 }}>{netTargetMode}</span>
+                      </div>
+                      <div className="flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px' }}>
+                        <span className="text-sell font-semibold shrink-0" style={{ fontSize: 9, marginRight: 6 }}>Loss</span>
+                        <input
+                          type="text"
+                          placeholder={netTargetMode === '$' ? 'e.g. 25.00' : 'e.g. 1.0'}
+                          value={netLoss}
+                          onChange={(e) => setNetLoss(e.target.value)}
+                          className="bg-transparent text-text-primary w-full outline-none tabular-nums text-right"
+                          style={{ fontSize: 11, padding: '6px 0' }}
+                        />
+                        <span className="text-text-muted shrink-0" style={{ fontSize: 9, marginLeft: 4 }}>{netTargetMode}</span>
+                      </div>
+                    </div>
+
+                    {/* Fee breakdown */}
+                    <div className="bg-bg-card rounded-lg border border-border" style={{ padding: '6px 8px' }}>
+                      <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
+                        <span className="text-text-muted" style={{ fontSize: 8 }}>Spread cost</span>
+                        <span className="text-text-secondary tabular-nums" style={{ fontSize: 8 }}>-${spreadCost.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
+                        <span className="text-text-muted" style={{ fontSize: 8 }}>Commission</span>
+                        <span className="text-text-secondary tabular-nums" style={{ fontSize: 8 }}>-${commission.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-border" style={{ paddingTop: 3 }}>
+                        <span className="text-text-muted font-medium" style={{ fontSize: 8 }}>Total fees</span>
+                        <span className="text-accent tabular-nums font-medium" style={{ fontSize: 8 }}>-${totalFee.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── Action Button (single, matches direction) ── */}
+              <button
+                className={`w-full ${tradeDirection === 'buy' ? 'bg-buy hover:shadow-[0_4px_20px_rgba(14,203,129,0.3)]' : 'bg-sell hover:shadow-[0_4px_20px_rgba(246,70,93,0.3)]'} active:scale-[0.97] text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center relative overflow-hidden group`}
+                style={{ padding: '8px 0' }}
+              >
+                <div className={`absolute inset-0 bg-gradient-to-t ${tradeDirection === 'buy' ? 'from-buy-dark/30' : 'from-sell-dark/30'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
+                <span className="relative font-bold" style={{ fontSize: 11 }}>
+                  {tradeDirection === 'buy' ? `Buy ${selectedPair.pair}` : `Sell ${selectedPair.pair}`}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ── Timeframe Tabs ── */}
-      <div className="shrink-0" style={{ padding: '6px 16px 4px' }}>
-        <div className="flex bg-bg-secondary rounded-xl border border-border" style={{ gap: 4, padding: 5 }}>
-          {timeframes.map((tf) => (
-            <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
-              className={`flex-1 rounded-lg font-semibold transition-all ${
-                timeframe === tf ? 'bg-accent/[0.12] text-accent' : 'text-text-muted hover:text-text-secondary'
-              }`}
-              style={{ padding: '5px 0', fontSize: 10 }}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Chart (fixed compact height) ── */}
-      <div className="shrink-0" style={{ padding: '4px 16px 6px', height: 250 }}>
-        <div className="gradient-card rounded-xl border border-border h-full flex items-center justify-center" style={{ padding: 6 }}>
-          <CandlestickChart />
-        </div>
-      </div>
-
-      {/* ── Order Entry Panel — immediately after chart ── */}
-      <div className="shrink-0 glass-strong border-t border-border" style={{ padding: '10px 16px' }}>
-        {/* Order Type + Lot Size row */}
-        <div className="flex items-center" style={{ gap: 8, marginBottom: 8 }}>
-          <div className="flex bg-bg-secondary rounded-lg border border-border" style={{ gap: 2, padding: 3 }}>
-            {[
-              { id: 'market', label: 'Market', icon: TrendingUp },
-              { id: 'limit', label: 'Limit', icon: Clock },
-              { id: 'stop', label: 'Stop', icon: BarChart3 },
-            ].map((type) => {
-              const Icon = type.icon;
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => setOrderType(type.id)}
-                  className={`rounded-md font-semibold flex items-center transition-all ${
-                    orderType === type.id ? 'bg-bg-elevated text-text-primary shadow-sm' : 'text-text-muted'
-                  }`}
-                  style={{ padding: '5px 7px', gap: 3, fontSize: 10 }}
-                >
-                  <Icon style={{ width: 10, height: 10 }} /> {type.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center ml-auto" style={{ gap: 6 }}>
-            <span className="text-text-muted" style={{ fontSize: 10 }}>Lots</span>
-            <button
-              onClick={() => setLotSize(Math.max(0.01, +(lotSize - 0.01).toFixed(2)))}
-              className="rounded-md bg-bg-card border border-border flex items-center justify-center active:bg-bg-elevated transition-all"
-              style={{ width: 26, height: 26 }}
-            >
-              <Minus className="text-text-secondary" style={{ width: 11, height: 11 }} />
-            </button>
-            <span className="text-text-primary font-bold tabular-nums text-center" style={{ fontSize: 12, width: 36 }}>{lotSize.toFixed(2)}</span>
-            <button
-              onClick={() => setLotSize(+(lotSize + 0.01).toFixed(2))}
-              className="rounded-md bg-bg-card border border-border flex items-center justify-center active:bg-bg-elevated transition-all"
-              style={{ width: 26, height: 26 }}
-            >
-              <Plus className="text-text-secondary" style={{ width: 11, height: 11 }} />
-            </button>
-          </div>
-        </div>
-
-        {/* Lot Size Quick Presets */}
-        <div className="flex" style={{ gap: 4, marginBottom: 8 }}>
-          {[0.01, 0.1, 0.5, 1.0].map((preset) => (
-            <button
-              key={preset}
-              onClick={() => setLotSize(preset)}
-              className={`flex-1 rounded-md font-semibold border transition-all ${
-                lotSize === preset
-                  ? 'border-accent/40 bg-accent/[0.08] text-accent'
-                  : 'border-border text-text-muted hover:border-border-hover'
-              }`}
-              style={{ padding: '4px 0', fontSize: 9 }}
-            >
-              {preset.toFixed(2)}
-            </button>
-          ))}
-        </div>
-
-        {/* TP / SL row */}
-        <div className="flex" style={{ gap: 8, marginBottom: 8 }}>
-          <div className="flex-1 flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px' }}>
-            <span className="text-buy font-semibold" style={{ fontSize: 9, marginRight: 6 }}>TP</span>
-            <input
-              type="text"
-              placeholder={`e.g. ${(selectedPair.price * 1.003).toFixed(decimals)}`}
-              value={tp}
-              onChange={(e) => setTp(e.target.value)}
-              className="bg-transparent text-text-primary w-full outline-none tabular-nums"
-              style={{ fontSize: 11, padding: '7px 0' }}
-            />
-          </div>
-          <div className="flex-1 flex items-center bg-bg-card rounded-lg border border-border" style={{ padding: '0 8px' }}>
-            <span className="text-sell font-semibold" style={{ fontSize: 9, marginRight: 6 }}>SL</span>
-            <input
-              type="text"
-              placeholder={`e.g. ${(selectedPair.price * 0.997).toFixed(decimals)}`}
-              value={sl}
-              onChange={(e) => setSl(e.target.value)}
-              className="bg-transparent text-text-primary w-full outline-none tabular-nums"
-              style={{ fontSize: 11, padding: '7px 0' }}
-            />
-          </div>
-        </div>
-
-        {/* Leverage row */}
-        <div className="flex" style={{ gap: 4, marginBottom: 8 }}>
-          {leverageOptions.map((lev) => (
-            <button
-              key={lev}
-              onClick={() => setSelectedLeverage(lev)}
-              className={`flex-1 rounded-md font-semibold border transition-all ${
-                selectedLeverage === lev
-                  ? 'border-accent/40 bg-accent/[0.08] text-accent'
-                  : 'border-border text-text-muted hover:border-border-hover'
-              }`}
-              style={{ padding: '5px 0', fontSize: 9 }}
-            >
-              {lev}
-            </button>
-          ))}
-        </div>
-
-        {/* Trade Info row */}
-        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-          <span className="text-text-muted" style={{ fontSize: 9 }}>Margin: <span className="text-text-secondary font-medium">${(selectedPair.price * lotSize * 100000 / parseInt(selectedLeverage.split(':')[1])).toFixed(2)}</span></span>
-          <span className="text-text-muted" style={{ fontSize: 9 }}>Pip: <span className="text-text-secondary font-medium">${(lotSize * 10).toFixed(2)}</span></span>
-          <span className="text-text-muted" style={{ fontSize: 9 }}>Risk: <span className="text-accent font-medium">{selectedLeverage}</span></span>
-        </div>
-
-        {/* Buy / Sell Buttons */}
-        <div className="flex items-center" style={{ gap: 6 }}>
-          <button className="flex-1 bg-sell hover:shadow-[0_4px_20px_rgba(246,70,93,0.3)] active:scale-[0.97] text-white font-bold rounded-lg transition-all duration-200 flex flex-col items-center relative overflow-hidden group" style={{ padding: '7px 0' }}>
-            <div className="absolute inset-0 bg-gradient-to-t from-sell-dark/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <span className="font-medium opacity-70 relative" style={{ fontSize: 8, marginBottom: 1 }}>SELL</span>
-            <span className="relative tabular-nums font-bold" style={{ fontSize: 12 }}>{bidPrice}</span>
-          </button>
-          <div className="shrink-0 bg-bg-elevated rounded border border-border flex items-center justify-center" style={{ padding: '3px 6px' }}>
-            <span className="text-text-muted tabular-nums" style={{ fontSize: 8 }}>{selectedPair.spread} pips</span>
-          </div>
-          <button className="flex-1 bg-buy hover:shadow-[0_4px_20px_rgba(14,203,129,0.3)] active:scale-[0.97] text-white font-bold rounded-lg transition-all duration-200 flex flex-col items-center relative overflow-hidden group" style={{ padding: '7px 0' }}>
-            <div className="absolute inset-0 bg-gradient-to-t from-buy-dark/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <span className="font-medium opacity-70 relative" style={{ fontSize: 8, marginBottom: 1 }}>BUY</span>
-            <span className="relative tabular-nums font-bold" style={{ fontSize: 12 }}>{askPrice}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Positions / Orders — right after trade buttons ── */}
+      {/* ── Positions / Orders / History ── */}
       <div className="shrink-0 border-t border-border" style={{ paddingBottom: 8 }}>
         <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {[
@@ -287,41 +383,56 @@ export default function TradeScreen() {
           {bottomTab === 'positions' && (
             allPositions.length > 0 ? (
               <div className="flex flex-col" style={{ gap: 6 }}>
-                {allPositions.map((pos, i) => (
-                  <div key={i} className="gradient-card rounded-xl border border-border flex items-center justify-between" style={{ padding: '10px 12px' }}>
-                    <div className="flex items-center" style={{ gap: 8 }}>
-                      <span className={`text-xs font-bold rounded px-1 py-0.5 ${pos.type === 'BUY' ? 'text-buy bg-buy/[0.12]' : 'text-sell bg-sell/[0.12]'}`}>
-                        {pos.type}
-                      </span>
-                      <div>
-                        <span className="text-text-primary font-semibold" style={{ fontSize: 12 }}>{pos.pair}</span>
-                        <span className="text-text-muted block" style={{ fontSize: 9 }}>{pos.lots} lots @ {pos.openPrice}</span>
+                {allPositions.map((pos, i) => {
+                  const pairData = forexPairs.find((p) => p.pair === pos.pair);
+                  const spreadCost = pairData ? pairData.spread * pos.lots * 10 : 0;
+                  const commission = pos.lots * 7;
+                  const totalFee = spreadCost + commission;
+                  const netPL = pos.pl - totalFee;
+                  const margin = pairData ? pairData.price * pos.lots * 100000 / 100 : 0;
+                  const netPct = margin > 0 ? (netPL / margin) * 100 : 0;
+                  return (
+                    <div key={i} className="gradient-card rounded-xl border border-border" style={{ padding: '10px 12px' }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center" style={{ gap: 8 }}>
+                          <span className={`text-xs font-bold rounded px-1 py-0.5 ${pos.type === 'BUY' ? 'text-buy bg-buy/[0.12]' : 'text-sell bg-sell/[0.12]'}`}>
+                            {pos.type}
+                          </span>
+                          <div>
+                            <span className="text-text-primary font-semibold" style={{ fontSize: 12 }}>{pos.pair}</span>
+                            <span className="text-text-muted block" style={{ fontSize: 9 }}>{pos.lots} lots @ {pos.openPrice}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`font-bold tabular-nums ${pos.pl >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 12 }}>
+                            {pos.pl >= 0 ? '+' : ''}${pos.pl.toFixed(2)}
+                          </span>
+                          <span className="text-text-muted block" style={{ fontSize: 8 }}>gross</span>
+                        </div>
+                      </div>
+                      {/* Net P/L after fees */}
+                      <div className="flex items-center justify-between bg-bg-elevated/50 rounded-lg" style={{ padding: '5px 8px', marginTop: 6 }}>
+                        <div className="flex items-center" style={{ gap: 6 }}>
+                          <span className="text-text-muted" style={{ fontSize: 8 }}>Net</span>
+                          <span className={`font-bold tabular-nums ${netPL >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 10 }}>
+                            {netPL >= 0 ? '+' : ''}${netPL.toFixed(2)}
+                          </span>
+                          <span className={`tabular-nums ${netPL >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 8 }}>
+                            ({netPct >= 0 ? '+' : ''}{netPct.toFixed(2)}%)
+                          </span>
+                          <span className="text-text-muted" style={{ fontSize: 7 }}>fees: -${totalFee.toFixed(2)}</span>
+                        </div>
+                        <button
+                          onClick={() => {}}
+                          className={`rounded font-semibold text-white transition-all active:scale-95 ${netPL >= 0 ? 'bg-buy' : 'bg-sell'}`}
+                          style={{ padding: '3px 8px', fontSize: 8 }}
+                        >
+                          Close
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center" style={{ gap: 8 }}>
-                      <div className="text-right">
-                        <span className={`font-bold tabular-nums ${pos.pl >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 13 }}>
-                          {pos.pl >= 0 ? '+' : ''}${pos.pl.toFixed(2)}
-                        </span>
-                        <span className={`block tabular-nums font-medium ${pos.pl >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 9 }}>
-                          {(() => {
-                            const pct = pos.type === 'BUY'
-                              ? ((pos.currentPrice - pos.openPrice) / pos.openPrice * 100)
-                              : ((pos.openPrice - pos.currentPrice) / pos.openPrice * 100);
-                            return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
-                          })()}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => alert('Close position')}
-                        className="rounded-md bg-bg-elevated border border-border flex items-center justify-center hover:border-sell/30 hover:text-sell transition-all"
-                        style={{ width: 22, height: 22 }}
-                      >
-                        <X className="text-text-muted" style={{ width: 10, height: 10 }} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="flex items-center justify-between" style={{ padding: '4px 4px 0' }}>
                   <span className="text-text-muted font-medium" style={{ fontSize: 10 }}>Total P/L</span>
                   <span className="text-buy font-bold tabular-nums" style={{ fontSize: 13 }}>
@@ -376,60 +487,45 @@ export default function TradeScreen() {
         </div>
       </div>
 
-      {/* ── Order Book / Trades / Info — supplementary data at bottom ── */}
-      <div className="shrink-0 border-t border-border" style={{ paddingBottom: 16 }}>
-        <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          {[
-            { id: 'orderbook', label: 'Order Book' },
-            { id: 'trades', label: 'Trades' },
-            { id: 'info', label: 'Info' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setMiddleTab(tab.id)}
-              className={`flex-1 font-semibold transition-all relative ${
-                middleTab === tab.id ? 'text-accent' : 'text-text-muted'
-              }`}
-              style={{ padding: '8px 0', fontSize: 11 }}
-            >
-              {tab.label}
-              {middleTab === tab.id && (
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 bg-accent rounded-t-full" style={{ width: 24, height: 2 }} />
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ padding: '8px 16px' }}>
-          {middleTab === 'orderbook' && (
-            <OrderBook basePrice={selectedPair.price} decimals={decimals} />
-          )}
-          {middleTab === 'trades' && (
-            <RecentTrades basePrice={selectedPair.price} decimals={decimals} />
-          )}
-          {middleTab === 'info' && (
-            <div className="flex flex-col" style={{ gap: 10 }}>
+      {/* ── Copy Trade Suggestion ── */}
+      <div className="shrink-0 border-t border-border" style={{ padding: '10px 16px' }}>
+        <button className="flex items-center justify-between w-full" style={{ marginBottom: 8 }}>
+          <span className="text-text-secondary font-medium" style={{ fontSize: 11 }}>You may be interested in · <span className="text-accent">Copy</span></span>
+          <ChevronDown className="text-text-muted" style={{ width: 12, height: 12, transform: 'rotate(-90deg)' }} />
+        </button>
+        <div className="gradient-card rounded-xl border border-border" style={{ padding: '12px 14px' }}>
+          <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+            <div className="flex items-center" style={{ gap: 8 }}>
+              {/* Avatar */}
+              <img
+                src="https://i.pravatar.cc/64?img=12"
+                alt="TraderKeng"
+                className="rounded-full object-cover"
+                style={{ width: 32, height: 32 }}
+              />
               <div>
-                <span className="text-text-muted" style={{ fontSize: 10, marginBottom: 4, display: 'block' }}>Market Sentiment</span>
-                <SentimentBar buy={selectedPair.sentiment.buy} sell={selectedPair.sentiment.sell} />
-              </div>
-              <div className="grid grid-cols-2" style={{ gap: 8 }}>
-                {[
-                  { label: 'Spread', value: `${selectedPair.spread} pips` },
-                  { label: 'Volume', value: selectedPair.volume },
-                  { label: 'Pip Value', value: `$${(lotSize * 10).toFixed(2)}` },
-                  { label: 'Margin Req.', value: `$${(selectedPair.price * lotSize * 100000 / parseInt(selectedLeverage.split(':')[1])).toFixed(2)}` },
-                  { label: 'Swap Long', value: '-2.35' },
-                  { label: 'Swap Short', value: '+1.12' },
-                ].map((item) => (
-                  <div key={item.label} className="gradient-card rounded-xl border border-border" style={{ padding: '8px 10px' }}>
-                    <span className="text-text-muted block" style={{ fontSize: 9 }}>{item.label}</span>
-                    <span className="text-text-primary font-medium" style={{ fontSize: 12 }}>{item.value}</span>
-                  </div>
-                ))}
+                <span className="text-text-primary font-semibold block" style={{ fontSize: 12 }}>TraderKeng</span>
+                <span className="text-text-muted" style={{ fontSize: 9 }}>👥 148/200 copiers</span>
               </div>
             </div>
-          )}
+            <button className="bg-accent/[0.12] text-accent font-bold rounded-lg hover:bg-accent/[0.2] transition-all" style={{ padding: '5px 14px', fontSize: 10 }}>
+              Copy
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-text-muted block" style={{ fontSize: 8 }}>30D PnL (USD)</span>
+              <span className="text-buy font-bold tabular-nums" style={{ fontSize: 12 }}>+$12,847.50</span>
+            </div>
+            <div>
+              <span className="text-text-muted block" style={{ fontSize: 8 }}>Win Rate</span>
+              <span className="text-buy font-bold tabular-nums" style={{ fontSize: 12 }}>78.4%</span>
+            </div>
+            <div className="text-right">
+              <span className="text-text-muted block" style={{ fontSize: 8 }}>30D ROI</span>
+              <span className="text-buy font-bold tabular-nums" style={{ fontSize: 12 }}>+8.32%</span>
+            </div>
+          </div>
         </div>
       </div>
 

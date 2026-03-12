@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Search, Star, TrendingUp, Users, ArrowUpRight, ArrowDownRight, Copy, Globe, BarChart3, ChevronRight, Gauge, X } from 'lucide-react';
-import { forexPairs, copyTraders, topMovers, marketSessions, currencyStrength } from '../data/mockData';
+import { Search, Star, TrendingUp, Users, ArrowUpRight, ArrowDownRight, Copy, BarChart3, ChevronRight, Gauge, X, ArrowLeft, Clock, Activity } from 'lucide-react';
+import { forexPairs, copyTraders, topMovers, currencyStrength } from '../data/mockData';
 import MiniChart from '../components/MiniChart';
+import CandlestickChart from '../components/CandlestickChart';
+import OrderBook from '../components/OrderBook';
+import RecentTrades from '../components/RecentTrades';
 import SentimentBar from '../components/SentimentBar';
 
 export default function MarketsScreen({ onNavigate }) {
@@ -9,6 +12,8 @@ export default function MarketsScreen({ onNavigate }) {
   const [tab, setTab] = useState('all');
   const [favorites, setFavorites] = useState(['EUR/USD', 'GBP/USD']);
   const [expandedSection, setExpandedSection] = useState(null);
+  const [selectedPairDetail, setSelectedPairDetail] = useState(null);
+  const [detailTab, setDetailTab] = useState('orderbook');
 
   const filteredPairs = forexPairs.filter((pair) =>
     pair.pair.toLowerCase().includes(search.toLowerCase())
@@ -34,19 +39,6 @@ export default function MarketsScreen({ onNavigate }) {
         </div>
       </div>
 
-      {/* Market Hours Bar */}
-      <div className="shrink-0 flex items-center border-b border-border" style={{ padding: '6px 16px', gap: 6 }}>
-        <Globe className="text-text-muted" style={{ width: 11, height: 11 }} />
-        <div className="flex items-center" style={{ gap: 10 }}>
-          {marketSessions.map((s) => (
-            <div key={s.name} className="flex items-center" style={{ gap: 3 }}>
-              <span style={{ fontSize: 11 }}>{s.flag}</span>
-              <span className={`font-medium ${s.active ? 'text-buy' : 'text-text-muted'}`} style={{ fontSize: 9 }}>{s.name}</span>
-              {s.active && <div className="rounded-full bg-buy animate-pulse" style={{ width: 4, height: 4 }} />}
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto custom-scroll" style={{ padding: '12px 16px 32px' }}>
@@ -171,7 +163,7 @@ export default function MarketsScreen({ onNavigate }) {
             {displayPairs.map((pair, i) => (
               <button
                 key={pair.pair}
-                onClick={() => onNavigate('trade')}
+                onClick={() => setSelectedPairDetail(pair)}
                 className="w-full gradient-card rounded-xl border border-border flex items-center hover:border-border-hover transition-all active:scale-[0.98]"
                 style={{ padding: '10px 12px', gap: 10, marginBottom: i < displayPairs.length - 1 ? 8 : 0 }}
               >
@@ -282,6 +274,145 @@ export default function MarketsScreen({ onNavigate }) {
           </div>
         )}
       </div>
+
+      {/* ── Pair Detail Overlay ── */}
+      {selectedPairDetail && (() => {
+        const pair = selectedPairDetail;
+        const decimals = pair.price > 100 ? 2 : 4;
+        const bidPrice = (pair.price - pair.spread * 0.0001 / 2).toFixed(decimals);
+        const askPrice = (pair.price + pair.spread * 0.0001 / 2).toFixed(decimals);
+        return (
+          <div className="absolute inset-0 bg-bg-primary z-50 flex flex-col animate-slideUp">
+            {/* Header */}
+            <div className="glass-strong shrink-0 flex items-center justify-between" style={{ padding: '12px 16px' }}>
+              <div className="flex items-center" style={{ gap: 10 }}>
+                <button onClick={() => setSelectedPairDetail(null)} className="rounded-lg bg-bg-elevated border border-border flex items-center justify-center" style={{ width: 30, height: 30 }}>
+                  <ArrowLeft className="text-text-secondary" style={{ width: 14, height: 14 }} />
+                </button>
+                <div>
+                  <h3 className="text-text-primary font-bold" style={{ fontSize: 15 }}>{pair.pair}</h3>
+                  <div className="flex items-center" style={{ gap: 6 }}>
+                    <span className="text-text-primary font-bold tabular-nums" style={{ fontSize: 12 }}>{pair.price.toFixed(decimals)}</span>
+                    <span className={`font-semibold ${pair.change >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 10 }}>
+                      {pair.change >= 0 ? '+' : ''}{pair.change}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleFavorite(pair.pair); }}
+                style={{ padding: 6 }}
+              >
+                <Star className={`transition-all ${favorites.includes(pair.pair) ? 'text-accent fill-accent' : 'text-text-muted'}`} style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto custom-scroll" style={{ padding: '12px 16px 32px' }}>
+
+              {/* Timeframe tabs */}
+              <div className="flex" style={{ gap: 4, marginBottom: 10 }}>
+                {['1H', '4H', '1D', '1W', '1M'].map((tf) => (
+                  <button key={tf} className="flex-1 rounded-lg bg-bg-card border border-border text-text-muted font-semibold hover:text-text-primary transition-all first:bg-bg-elevated first:text-text-primary" style={{ padding: '5px 0', fontSize: 9 }}>
+                    {tf}
+                  </button>
+                ))}
+              </div>
+
+              {/* Chart */}
+              <div className="gradient-card rounded-xl border border-border" style={{ padding: '10px 8px', marginBottom: 12 }}>
+                <CandlestickChart />
+              </div>
+
+              {/* BID / ASK / Spread */}
+              <div className="gradient-card rounded-xl border border-border flex items-center justify-between" style={{ padding: '10px 14px', marginBottom: 12 }}>
+                <div className="flex flex-col">
+                  <span className="text-text-muted" style={{ fontSize: 8 }}>BID</span>
+                  <span className="text-sell font-bold tabular-nums" style={{ fontSize: 14 }}>{bidPrice}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-text-muted" style={{ fontSize: 8 }}>SPREAD</span>
+                  <span className="text-accent font-bold tabular-nums" style={{ fontSize: 11 }}>{pair.spread} pips</span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-text-muted" style={{ fontSize: 8 }}>ASK</span>
+                  <span className="text-buy font-bold tabular-nums" style={{ fontSize: 14 }}>{askPrice}</span>
+                </div>
+              </div>
+
+              {/* Pair Info */}
+              <div className="gradient-card rounded-xl border border-border" style={{ padding: '12px 14px', marginBottom: 12 }}>
+                <h4 className="text-text-primary font-bold" style={{ fontSize: 11, marginBottom: 8 }}>Pair Info</h4>
+                <div className="flex flex-col" style={{ gap: 6 }}>
+                  {[
+                    { label: 'Volume', value: pair.volume },
+                    { label: 'Spread', value: `${pair.spread} pips` },
+                    { label: 'Session', value: 'London / New York' },
+                    { label: 'Type', value: pair.pair.includes('USD') ? 'Major' : 'Cross' },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between">
+                      <span className="text-text-muted" style={{ fontSize: 10 }}>{row.label}</span>
+                      <span className="text-text-secondary font-medium" style={{ fontSize: 10 }}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Buy / Sell buttons */}
+              <div className="flex" style={{ gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={() => onNavigate('trade')}
+                  className="flex-1 bg-buy hover:shadow-[0_4px_20px_rgba(14,203,129,0.3)] active:scale-[0.97] text-white font-bold rounded-xl transition-all duration-200 flex flex-col items-center relative overflow-hidden group"
+                  style={{ padding: '10px 0' }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-buy-dark/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="font-medium opacity-70 relative" style={{ fontSize: 9, marginBottom: 1 }}>BUY</span>
+                  <span className="relative tabular-nums font-bold" style={{ fontSize: 14 }}>{askPrice}</span>
+                </button>
+                <button
+                  onClick={() => onNavigate('trade')}
+                  className="flex-1 bg-sell hover:shadow-[0_4px_20px_rgba(246,70,93,0.3)] active:scale-[0.97] text-white font-bold rounded-xl transition-all duration-200 flex flex-col items-center relative overflow-hidden group"
+                  style={{ padding: '10px 0' }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-sell-dark/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="font-medium opacity-70 relative" style={{ fontSize: 9, marginBottom: 1 }}>SELL</span>
+                  <span className="relative tabular-nums font-bold" style={{ fontSize: 14 }}>{bidPrice}</span>
+                </button>
+              </div>
+
+              {/* Sentiment */}
+              <div className="gradient-card rounded-xl border border-border" style={{ padding: '12px 14px', marginBottom: 12 }}>
+                <h4 className="text-text-primary font-bold" style={{ fontSize: 11, marginBottom: 8 }}>Market Sentiment</h4>
+                <SentimentBar buy={pair.sentiment.buy} sell={pair.sentiment.sell} />
+              </div>
+
+              {/* Order Book / Trades tabs */}
+              <div className="gradient-card rounded-xl border border-border" style={{ padding: '10px 12px', marginBottom: 12 }}>
+                <div className="flex" style={{ gap: 4, marginBottom: 10 }}>
+                  {['orderbook', 'trades'].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setDetailTab(t)}
+                      className={`flex-1 rounded-lg font-semibold text-center transition-all ${
+                        detailTab === t ? 'bg-accent/[0.12] text-accent' : 'text-text-muted'
+                      }`}
+                      style={{ padding: '6px 0', fontSize: 10 }}
+                    >
+                      {t === 'orderbook' ? 'Order Book' : 'Recent Trades'}
+                    </button>
+                  ))}
+                </div>
+                {detailTab === 'orderbook' && (
+                  <OrderBook basePrice={pair.price} decimals={decimals} spread={pair.spread} />
+                )}
+                {detailTab === 'trades' && (
+                  <RecentTrades basePrice={pair.price} decimals={decimals} />
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Full-screen Popup Overlay ── */}
       {expandedSection && (

@@ -2,9 +2,9 @@ import { Home, BarChart3, LineChart, User, Compass } from 'lucide-react';
 
 const navItems = [
   { id: 'home', label: 'Home', icon: Home },
-  { id: 'trade', label: 'Trade', icon: LineChart },
-  { id: 'discover', label: 'Discover', icon: Compass },
   { id: 'markets', label: 'Markets', icon: BarChart3 },
+  { id: 'discover', label: 'Discover', icon: Compass },
+  { id: 'trade', label: 'Trade', icon: LineChart },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 

@@ -1,6 +1,6 @@
-import { Wallet, TrendingUp, TrendingDown, Eye, EyeOff, Bell, ArrowUpRight, ArrowDownRight, LayoutDashboard, FolderOpen, Globe, BarChart3, Target, Clock, Award } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Eye, EyeOff, Bell, ArrowUpRight, ArrowDownRight, LayoutDashboard, FolderOpen, BarChart3, Target, Clock, Award } from 'lucide-react';
 import { useState } from 'react';
-import { walletData, openPositions, marketSessions, weeklyPerformance } from '../data/mockData';
+import { walletData, openPositions, weeklyPerformance, forexPairs } from '../data/mockData';
 
 export default function HomeScreen({ onNavigate, onOpenAlerts }) {
   const [showBalance, setShowBalance] = useState(true);
@@ -32,19 +32,7 @@ export default function HomeScreen({ onNavigate, onOpenAlerts }) {
         </button>
       </div>
 
-      {/* Market Sessions Bar */}
-      <div className="shrink-0 flex items-center border-b border-border" style={{ padding: '6px 16px', gap: 6 }}>
-        <Globe className="text-text-muted" style={{ width: 11, height: 11 }} />
-        <div className="flex items-center" style={{ gap: 10 }}>
-          {marketSessions.map((s) => (
-            <div key={s.name} className="flex items-center" style={{ gap: 3 }}>
-              <span style={{ fontSize: 11 }}>{s.flag}</span>
-              <span className={`font-medium ${s.active ? 'text-buy' : 'text-text-muted'}`} style={{ fontSize: 9 }}>{s.name}</span>
-              {s.active && <div className="rounded-full bg-buy animate-pulse" style={{ width: 4, height: 4 }} />}
-            </div>
-          ))}
-        </div>
-      </div>
+
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto custom-scroll" style={{ padding: '12px 16px 32px' }}>
@@ -90,6 +78,76 @@ export default function HomeScreen({ onNavigate, onOpenAlerts }) {
                 <p className="text-text-primary text-sm font-semibold">{item.value}</p>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Open Positions */}
+        <div style={{ marginBottom: 14 }}>
+          <div className="flex items-center" style={{ gap: 6, marginBottom: 12 }}>
+            <FolderOpen className="text-accent" style={{ width: 15, height: 15 }} />
+            <span className="text-text-primary font-bold" style={{ fontSize: 13 }}>Open Positions</span>
+          </div>
+          <div className="gradient-card rounded-xl border border-border overflow-hidden">
+            {openPositions.map((pos, i) => {
+              const pairData = forexPairs.find((p) => p.pair === pos.pair);
+              const spreadCost = pairData ? pairData.spread * pos.lots * 10 : 0;
+              const commission = pos.lots * 7;
+              const totalFee = spreadCost + commission;
+              const netPL = pos.pl - totalFee;
+              const margin = pairData ? pairData.price * pos.lots * 100000 / 100 : 0;
+              const netPct = margin > 0 ? (netPL / margin) * 100 : 0;
+              return (
+                <div
+                  key={i}
+                  className={`${i < openPositions.length - 1 ? 'border-b border-border/40' : ''}`}
+                  style={{ padding: '10px 12px' }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center" style={{ gap: 10 }}>
+                      <div className={`rounded-lg flex items-center justify-center ${pos.type === 'BUY' ? 'bg-buy-glow' : 'bg-sell-glow'}`} style={{ width: 30, height: 30 }}>
+                        {pos.type === 'BUY'
+                          ? <ArrowUpRight className="text-buy" style={{ width: 14, height: 14 }} />
+                          : <ArrowDownRight className="text-sell" style={{ width: 14, height: 14 }} />
+                        }
+                      </div>
+                      <div>
+                        <p className="text-text-primary font-semibold" style={{ fontSize: 12 }}>{pos.pair}</p>
+                        <p className="text-text-muted" style={{ fontSize: 10, marginTop: 2 }}>{pos.type} · {pos.lots} lots</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-bold tabular-nums ${pos.pl >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 12 }}>
+                        {pos.pl >= 0 ? '+' : ''}${pos.pl.toFixed(2)}
+                      </p>
+                      <p className="text-text-muted" style={{ fontSize: 10, marginTop: 1 }}>{pos.currentPrice}</p>
+                    </div>
+                  </div>
+                  {/* Net P/L after fees */}
+                  <div className="flex items-center justify-between bg-bg-elevated/50 rounded-lg" style={{ padding: '6px 8px', marginTop: 6 }}>
+                    <div className="flex items-center" style={{ gap: 8 }}>
+                      <span className="text-text-muted" style={{ fontSize: 8 }}>Net after fees</span>
+                      <span className={`font-bold tabular-nums ${netPL >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 10 }}>
+                        {netPL >= 0 ? '+' : ''}${netPL.toFixed(2)}
+                      </span>
+                      <span className={`tabular-nums ${netPL >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 8 }}>
+                        ({netPct >= 0 ? '+' : ''}{netPct.toFixed(2)}%)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {}}
+                      className={`rounded font-semibold text-white transition-all active:scale-95 ${netPL >= 0 ? 'bg-buy' : 'bg-sell'}`}
+                      style={{ padding: '3px 10px', fontSize: 8 }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="flex items-center" style={{ gap: 8, marginTop: 3 }}>
+                    <span className="text-text-muted" style={{ fontSize: 7 }}>Spread: -${spreadCost.toFixed(2)}</span>
+                    <span className="text-text-muted" style={{ fontSize: 7 }}>Comm: -${commission.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -171,42 +229,6 @@ export default function HomeScreen({ onNavigate, onOpenAlerts }) {
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Open Positions */}
-        <div>
-          <div className="flex items-center" style={{ gap: 6, marginBottom: 12 }}>
-            <FolderOpen className="text-accent" style={{ width: 15, height: 15 }} />
-            <span className="text-text-primary font-bold" style={{ fontSize: 13 }}>Open Positions</span>
-          </div>
-          <div className="gradient-card rounded-xl border border-border overflow-hidden">
-            {openPositions.map((pos, i) => (
-              <div
-                key={i}
-                className={`flex items-center justify-between ${i < openPositions.length - 1 ? 'border-b border-border/40' : ''}`}
-                style={{ padding: '10px 12px' }}
-              >
-                <div className="flex items-center" style={{ gap: 10 }}>
-                  <div className={`rounded-lg flex items-center justify-center ${pos.type === 'BUY' ? 'bg-buy-glow' : 'bg-sell-glow'}`} style={{ width: 30, height: 30 }}>
-                    {pos.type === 'BUY'
-                      ? <ArrowUpRight className="text-buy" style={{ width: 14, height: 14 }} />
-                      : <ArrowDownRight className="text-sell" style={{ width: 14, height: 14 }} />
-                    }
-                  </div>
-                  <div>
-                    <p className="text-text-primary font-semibold" style={{ fontSize: 12 }}>{pos.pair}</p>
-                    <p className="text-text-muted" style={{ fontSize: 10, marginTop: 2 }}>{pos.type} · {pos.lots} lots</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`font-bold ${pos.pl >= 0 ? 'text-buy' : 'text-sell'}`} style={{ fontSize: 12 }}>
-                    {pos.pl >= 0 ? '+' : ''}${pos.pl.toFixed(2)}
-                  </p>
-                  <p className="text-text-muted" style={{ fontSize: 10, marginTop: 2 }}>{pos.currentPrice}</p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
